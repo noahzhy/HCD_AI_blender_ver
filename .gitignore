@@ -1,1 +1,4 @@
 *.blend1
+data/*
+human/*
+handSeg/*/*
