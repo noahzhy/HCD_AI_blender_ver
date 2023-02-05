@@ -52,7 +52,7 @@ def load_anim(filepath):
         use_prepost_rot = False,
         use_custom_props=True,
         use_custom_props_enum_as_string=True,
-        ignore_leaf_bones=False,
+        ignore_leaf_bones=True,
         force_connect_children=False,
         automatic_bone_orientation=False,
     )
@@ -67,6 +67,17 @@ def load_anim(filepath):
     bpy.ops.object.delete(use_global=False, confirm=False)
     # return animation name
     return fbx_name
+
+
+def load_anims(dir_path):
+    # delete all animations
+    for anim in bpy.data.actions:
+        bpy.data.actions.remove(anim)
+    anims = []
+    for file in os.listdir(dir_path):
+        if file.endswith(".fbx"):
+            anims.append(load_anim(os.path.join(dir_path, file)))
+    return anims
 
 
 # function to apply animation to object's bones
@@ -145,6 +156,15 @@ def pose_bones_to_dict(obj_name):
     return pose_bone_dict
 
 
+# function to list all .fbx file names via given directory and file extension
+def load_files(directory, extension):
+    file_list = []
+    for file in os.listdir(directory):
+        if file.endswith(extension):
+            file_list.append(file)
+    return file_list
+
+
 # function to list all armature objects in the scene
 def list_armature(scene_name=None):
     # list all scene names if scene name is not given
@@ -173,14 +193,59 @@ def to_camera_space_2d(vector, camera=None):
     return Vector((co.x, co.y))
 
 
+# function to hide all armature objects in the scene including its mesh
+def hide_armature():
+    # list all armature objects
+    arma_list = list_armature()
+    # hide all armature objects
+    for obj in arma_list:
+        bpy.data.objects[obj].hide_viewport = True
+        bpy.data.objects[obj].hide_render = True
+    # hide all armature objects' mesh
+    for obj in bpy.data.objects:
+        if obj.parent is not None and obj.parent.type == "ARMATURE":
+            obj.hide_viewport = True
+            obj.hide_render = True
+
+
+# function to hide all armature objects in the scene, but random pick one to show and show its mesh
+def show_armature(num=None):
+    random_armature = []
+    # hide all armature objects
+    hide_armature()
+
+    # list all armature objects
+    if num is None: num = 1
+    arma_list = list_armature()
+    random_armature = random.sample(arma_list, num)
+
+    for arms in random_armature:
+        bpy.data.objects[arms].hide_viewport = False
+        bpy.data.objects[arms].hide_render = False
+        # show its mesh
+        for child in bpy.data.objects[arms].children:
+            child.hide_viewport = False
+            child.hide_render = False
+
+    return random_armature
+
+
 if __name__ == "__main__":
-    # move animation from object to another
-    f_path = "C:\\Users\\noah\\Downloads\\Praying (1).fbx"
-    anim_name = load_anim(f_path)
-    arma = list_armature()
-    for obj in arma:
-        apply_anim(anim_name, obj)
-        set_frame(anim_name, obj, -1)
+    f_path = "D:\\projects\\HCD_AI_blender_ver\\anim"
+
+    anims = load_anims(f_path)
+    armas = show_armature()
+
+    for arma in armas:
+        anim_name = random.choice(anims)
+        apply_anim(anim_name, arma)
+        set_frame(anim_name, arma, -1)
+
+    # for obj in arma:
+    #     anim_name = random.choice(anims)
+    #     apply_anim(anim_name, obj)
+    #     set_frame(anim_name, obj, -1)
+
 
     # print(list_anim())
     # print(hand_bones_to_dict("carla"))
