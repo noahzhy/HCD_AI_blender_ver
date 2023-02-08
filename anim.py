@@ -233,13 +233,13 @@ def show_armature(num=None):
 if __name__ == "__main__":
     f_path = "D:\\projects\\HCD_AI_blender_ver\\anim"
 
-    anims = load_anims(f_path)
+    # anims = load_anims(f_path)
     armas = show_armature()
 
-    for arma in armas:
-        anim_name = random.choice(anims)
-        apply_anim(anim_name, arma)
-        set_frame(anim_name, arma, -1)
+    # for arma in armas:
+    #     anim_name = random.choice(anims)
+    #     apply_anim(anim_name, arma)
+    #     set_frame(anim_name, arma, -1)
 
     # for obj in arma:
     #     anim_name = random.choice(anims)
