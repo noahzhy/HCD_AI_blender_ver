@@ -1,37 +1,46 @@
 import os
+import sys
 import random
 from mathutils import Vector
 
 import bpy
 import bpy_extras
 
+dir = os.path.dirname(bpy.data.filepath)
+if not dir in sys.path:
+    sys.path.append(dir)
+
+import base_ops
+import importlib
+importlib.reload(base_ops)
+from base_ops import *
 
 # pose part names
-pose_parts = [
-    'nose',
-    'Neck',
-    'RightArm', 'RightForeArm', 'RightHand',
-    'LeftArm', 'LeftForeArm', 'LeftHand',
-    'RightUpLeg', 'RightLeg', 'RightFoot',
-    'LeftUpLeg', 'LeftLeg', 'LeftFoot',
-    'RightEye', 'LeftEye',
-    'ear_r', 'ear_l',
-]
+pose_parts = {
+    'nose': 'Nose',
+    'Neck': 'Neck',
+    'RightArm': 'RightArm', 'RightForeArm': 'RightForeArm', 'RightHand': 'RightHand',
+    'LeftArm': 'LeftArm', 'LeftForeArm': 'LeftForeArm', 'LeftHand': 'LeftHand',
+    'RightUpLeg': 'RightUpLeg', 'RightLeg': 'RightLeg', 'RightFoot': 'RightFoot',
+    'LeftUpLeg': 'LeftUpLeg', 'LeftLeg': 'LeftLeg', 'LeftFoot': 'LeftFoot',
+    'RightEye': 'RightEye', 'LeftEye': 'LeftEye',
+    'ear_r': 'RightEar', 'ear_l': 'LeftEar',
+}
 
 # hands part names
 hand_parts = [
     'LeftHand',
-    'LeftHandThumb1', 'LeftHandThumb2', 'LeftHandThumb3', 'thumb_end_l',
-    'LeftHandIndex1', 'LeftHandIndex2', 'LeftHandIndex3', 'index_end_l',
-    'LeftHandMiddle1', 'LeftHandMiddle2', 'LeftHandMiddle3', 'middle_end_l',
-    'LeftHandRing1', 'LeftHandRing2', 'LeftHandRing3', 'ring_end_l',
-    'LeftHandPinky1', 'LeftHandPinky2', 'LeftHandPinky3', 'pinky_end_l',
-    'RightHand',
-    'RightHandThumb1', 'RightHandThumb2', 'RightHandThumb3', 'thumb_end_r',
-    'RightHandIndex1', 'RightHandIndex2', 'RightHandIndex3', 'index_end_r',
-    'RightHandMiddle1', 'RightHandMiddle2', 'RightHandMiddle3', 'middle_end_r',
-    'RightHandRing1', 'RightHandRing2', 'RightHandRing3', 'ring_end_r',
-    'RightHandPinky1', 'RightHandPinky2', 'RightHandPinky3', 'pinky_end_r',
+    'LeftHandThumb1', 'LeftHandThumb2', 'LeftHandThumb3', 'LeftHandThumb4',
+    'LeftHandIndex1', 'LeftHandIndex2', 'LeftHandIndex3', 'LeftHandIndex4',
+    'LeftHandMiddle1', 'LeftHandMiddle2', 'LeftHandMiddle3', 'LeftHandMiddle4',
+    'LeftHandRing1', 'LeftHandRing2', 'LeftHandRing3', 'LeftHandRing4',
+    'LeftHandPinky1', 'LeftHandPinky2', 'LeftHandPinky3', 'LeftHandPinky4',
+    'RightHand', 
+    'RightHandThumb1', 'RightHandThumb2', 'RightHandThumb3', 'RightHandThumb4',
+    'RightHandIndex1', 'RightHandIndex2', 'RightHandIndex3', 'RightHandIndex4',
+    'RightHandMiddle1', 'RightHandMiddle2', 'RightHandMiddle3', 'RightHandMiddle4',
+    'RightHandRing1', 'RightHandRing2', 'RightHandRing3', 'RightHandRing4',
+    'RightHandPinky1', 'RightHandPinky2', 'RightHandPinky3', 'RightHandPinky4',
 ]
 
 # function to load fbxs with manual foward axis, Z up, Y forward
@@ -151,8 +160,8 @@ def hand_bones_to_dict(obj_name):
 def pose_bones_to_dict(obj_name):
     pose_bone_dict = {}
     for bone in bpy.data.objects[obj_name].pose.bones:
-        if bone.name in pose_parts:
-            pose_bone_dict[bone.name] = bone.matrix.to_translation()
+        if bone.name in pose_parts.keys():
+            pose_bone_dict[pose_parts[bone.name]] = bone.matrix.to_translation()
     return pose_bone_dict
 
 
@@ -185,12 +194,11 @@ def to_camera_space_2d(vector, camera=None):
         camera = bpy.context.scene.camera
     scene = bpy.context.scene
     co = bpy_extras.object_utils.world_to_camera_view(scene, camera, vector)
-    # clamp to [0, 1]
-    co.x = max(0, min(1, co.x))
-    co.y = max(0, min(1, co.y))
     # flip y
     co.y = 1 - co.y
-    return Vector((co.x, co.y))
+    # return (co.x, co.y)
+    # keep 6 decimal places
+    return (round(co.x, 6), round(co.y, 6))
 
 
 # function to hide all armature objects in the scene including its mesh
@@ -231,10 +239,15 @@ def show_armature(num=None):
 
 
 if __name__ == "__main__":
-    f_path = "D:\\projects\\HCD_AI_blender_ver\\anim"
+    # get the file path
+    f_path = os.path.join(os.path.dirname(bpy.data.filepath), "anim")
 
-    # anims = load_anims(f_path)
+    anims = load_anims(f_path)
     armas = show_armature()
+    print(anims)
+
+    arms_visible = list_all_visible_armas()
+    print(arms_visible)
 
     # for arma in armas:
     #     anim_name = random.choice(anims)
@@ -246,10 +259,11 @@ if __name__ == "__main__":
     #     apply_anim(anim_name, obj)
     #     set_frame(anim_name, obj, -1)
 
+    pose = pose_bones_to_dict(armas[0])
 
     # print(list_anim())
     # print(hand_bones_to_dict("carla"))
     # pose = pose_bones_to_dict("carla")
-    # # using vector_to_2d function to convert 3d Vector to 2d
-    # for key, value in pose.items():
-    #     print(key, to_camera_space_2d(value))
+    # using vector_to_2d function to convert 3d Vector to 2d
+    for key, value in pose.items():
+        print(key, to_camera_space_2d(value))
