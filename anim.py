@@ -152,7 +152,7 @@ def hand_bones_to_dict(obj_name):
     for bone in bpy.data.objects[obj_name].pose.bones:
         if bone.name in hand_parts:
             # get the bone position (world space)
-            hand_bone_dict[bone.name] = bone.matrix.to_translation()
+            hand_bone_dict[bone.name] = to_camera_space_2d(bone.matrix.to_translation())
     return hand_bone_dict
 
 
@@ -161,7 +161,7 @@ def pose_bones_to_dict(obj_name):
     pose_bone_dict = {}
     for bone in bpy.data.objects[obj_name].pose.bones:
         if bone.name in pose_parts.keys():
-            pose_bone_dict[pose_parts[bone.name]] = bone.matrix.to_translation()
+            pose_bone_dict[pose_parts[bone.name]] = to_camera_space_2d(bone.matrix.to_translation())
     return pose_bone_dict
 
 

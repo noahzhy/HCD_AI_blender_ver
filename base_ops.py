@@ -180,3 +180,6 @@ def get_bounding_box_2d(obj_name, camera=bpy.data.objects['Camera']):
 def list_all_visible_armas():
     return [obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.visible_get()]
 
+
+def get_obj_from_armature(armature):
+    return [obj for obj in bpy.data.objects if obj.parent == armature and obj.visible_get()]

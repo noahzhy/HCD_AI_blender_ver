@@ -8,37 +8,16 @@ dir = os.path.dirname(bpy.data.filepath)
 if not dir in sys.path:
     sys.path.append(dir)
 
-import base_ops
 import importlib
+import anim
+import base_ops
+import skeleton2xml
+importlib.reload(anim)
 importlib.reload(base_ops)
+importlib.reload(skeleton2xml)
+from anim import *
 from base_ops import *
-
-
-# pose_lookup = [
-#     'nose',
-#     'Neck',
-#     'RightArm', 'RightForeArm', 'RightHand',
-#     'LeftArm', 'LeftForeArm', 'LeftHand',
-#     'RightUpLeg', 'RightLeg', 'RightFoot',
-#     'LeftUpLeg', 'LeftLeg', 'LeftFoot',
-#     'RightEye', 'LeftEye',
-#     'ear_r', 'ear_l',
-# ]
-
-# hand_lookup = [
-#     'LeftHand',
-#     'LeftHandThumb1', 'LeftHandThumb2', 'LeftHandThumb3', 'LeftHandThumb4',
-#     'LeftHandIndex1', 'LeftHandIndex2', 'LeftHandIndex3', 'LeftHandIndex4',
-#     'LeftHandMiddle1', 'LeftHandMiddle2', 'LeftHandMiddle3', 'LeftHandMiddle4',
-#     'LeftHandRing1', 'LeftHandRing2', 'LeftHandRing3', 'LeftHandRing4',
-#     'LeftHandPinky1', 'LeftHandPinky2', 'LeftHandPinky3', 'LeftHandPinky4',
-#     'RightHand', 
-#     'RightHandThumb1', 'RightHandThumb2', 'RightHandThumb3', 'RightHandThumb4',
-#     'RightHandIndex1', 'RightHandIndex2', 'RightHandIndex3', 'RightHandIndex4',
-#     'RightHandMiddle1', 'RightHandMiddle2', 'RightHandMiddle3', 'RightHandMiddle4',
-#     'RightHandRing1', 'RightHandRing2', 'RightHandRing3', 'RightHandRing4',
-#     'RightHandPinky1', 'RightHandPinky2', 'RightHandPinky3', 'RightHandPinky4',
-# ]
+from skeleton2xml import *
 
 
 class SynthSeg():
@@ -84,6 +63,26 @@ class SynthSeg():
                 if child.type == "MESH": bpy.context.object.modifiers["GeometryNodes"]["Input_2"] = 0
         bpy.ops.render.render(write_still=True, layer=main_viewlayer)
 
+    def gen_xml(self):
+        persons = []
+
+        arma_list = list_all_visible_armas()
+        for idx, arma in enumerate(arma_list):
+            # get mesh object
+            mesh_obj = get_obj_from_armature(arma)[0]
+            bbox = get_bounding_box_2d(mesh_obj.name)
+            pose = pose_bones_to_dict(arma.name)
+            hand = hand_bones_to_dict(arma.name)
+            person = Person(bbox, pose, hand)
+            persons.append(person)
+
+        save_xml(
+            persons,
+            "E:\\projects\\HCD_AI_blender_ver\\data\\img_0009.png",
+            "E:\\projects\\HCD_AI_blender_ver\\data",
+            512, 512, 3
+        )
+
     # @staticmethod
     # def list_armature():
     #     return [obj.name for obj in bpy.data.objects if obj.type == "ARMATURE" and obj.visible_get()]
@@ -100,6 +99,8 @@ if __name__ == "__main__":
     output_path = os.path.join(os.path.dirname(bpy.data.filepath), "data")
     ss = SynthSeg(1, debug=False, outpath=output_path)
     arma_list = list_all_visible_armas()
+
+    ss.gen_xml()
 
     # for arma in arma_list:
     #     bones = ss.get_bones(bpy.data.objects[arma.name])
