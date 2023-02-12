@@ -17,15 +17,19 @@ class Person():
         self.hand = hand
 
     def get_xml(self):
-        xml_txt = """<object>\n"""
-        xml_txt += """\t<name>""" + str(self.name) + """</name>\n"""
-        xml_txt += """\t<pose>Unspecified</pose>\n"""
-        xml_txt += """\t<truncated>0</truncated>\n"""
-        xml_txt += """\t<difficult>0</difficult>\n"""
+        xml_txt = """\t<object>\n"""
+        xml_txt += """\t\t<name>""" + str(self.name) + """</name>\n"""
+        xml_txt += """\t\t<pose>Unspecified</pose>\n"""
+        x1, y1, x2, y2 = self.bbox
+        if is_visible(x1, y1) and is_visible(x2, y2):
+            xml_txt += """\t\t<truncated>0</truncated>\n"""
+        else:
+            xml_txt += """\t\t<truncated>1</truncated>\n"""
+        xml_txt += """\t\t<difficult>0</difficult>\n"""
         xml_txt += bbox2xml(self.bbox)
-        xml_txt += pose2xml(self.pose, isPose=True)
-        xml_txt += pose2xml(self.hand, isPose=False)
-        xml_txt += """</object>\n"""
+        xml_txt += pose2xml(self.pose, "pose")
+        xml_txt += pose2xml(self.hand, "hand")
+        xml_txt += """\t</object>\n"""
         return xml_txt
 
     def get_dict(self):
@@ -33,40 +37,50 @@ class Person():
             "name": self.name,
             "bbox": self.bbox,
             "pose": self.pose,
-            "hand": self.hand
+            "hand": self.hand,
         }
+
+
+def is_visible(x, y) -> bool:
+    if (x > 0 and x < 1) and (y > 0 and y < 1):
+        return True
+    else:
+        return False
 
 
 # function to convert bbox to xml
 def bbox2xml(bbox):
-    xmin = bbox[0]
-    ymin = bbox[1]
-    xmax = bbox[2]
-    ymax = bbox[3]
-    xml_txt = """<bndbox>\n"""
-    xml_txt += """\t<xmin>""" + str(xmin) + """</xmin>\n"""
-    xml_txt += """\t<ymin>""" + str(ymin) + """</ymin>\n"""
-    xml_txt += """\t<xmax>""" + str(xmax) + """</xmax>\n"""
-    xml_txt += """\t<ymax>""" + str(ymax) + """</ymax>\n"""
-    xml_txt += """</bndbox>\n"""
+    # clamp bbox
+    xmin = max(0, bbox[0])
+    ymin = max(0, bbox[1])
+    xmax = min(1, bbox[2])
+    ymax = min(1, bbox[3])
+    # convert to xml
+    xml_txt = """\t\t<bndbox>\n"""
+    xml_txt += """\t\t\t<xmin>""" + str(xmin) + """</xmin>\n"""
+    xml_txt += """\t\t\t<ymin>""" + str(ymin) + """</ymin>\n"""
+    xml_txt += """\t\t\t<xmax>""" + str(xmax) + """</xmax>\n"""
+    xml_txt += """\t\t\t<ymax>""" + str(ymax) + """</ymax>\n"""
+    xml_txt += """\t\t</bndbox>\n"""
     return xml_txt
 
 
 # function to convert pose to xml
-def pose2xml(keypoints, isPose:bool=True):
-    xml_txt = """<pose>\n""" if isPose else """<hand>\n"""
+def pose2xml(keypoints, label_name:str):
+    xml_txt = """\t\t<{}>\n""".format(label_name)
     for key, value in keypoints.items():
-        xml_txt += """\t<""" + key + """>\n"""
-        xml_txt += """\t\t<x>""" + str(value[0]) + """</x>\n"""
-        xml_txt += """\t\t<y>""" + str(value[1]) + """</y>\n"""
+        xml_txt += """\t\t\t<""" + key + """>\n"""
+        xml_txt += """\t\t\t\t<x>""" + str(value[0]) + """</x>\n"""
+        xml_txt += """\t\t\t\t<y>""" + str(value[1]) + """</y>\n"""
 
-        if (value[0] > 0 and value[0] < 1) and (value[1] > 0 and value[1] < 1):
-            xml_txt += """\t\t<v>1</v>\n"""
+        x, y = value
+        if is_visible(x, y):
+            xml_txt += """\t\t\t\t<v>1</v>\n"""
         else:
-            xml_txt += """\t\t<v>0</v>\n""" 
+            xml_txt += """\t\t\t\t<v>0</v>\n"""
 
-        xml_txt += """\t</""" + key + """>\n"""
-    xml_txt += """</pose>\n""" if isPose else """</hand>\n"""
+        xml_txt += """\t\t\t</""" + key + """>\n"""
+    xml_txt += """\t\t</{}>\n""".format(label_name)
     return xml_txt
 
 

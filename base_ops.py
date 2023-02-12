@@ -10,9 +10,38 @@ import numpy as np
 from mathutils import Vector
 
 
+# pose part names
+pose_parts = {
+    'nose': 'Nose',
+    'Neck': 'Neck',
+    'RightArm': 'RightArm', 'RightForeArm': 'RightForeArm', 'RightHand': 'RightHand',
+    'LeftArm': 'LeftArm', 'LeftForeArm': 'LeftForeArm', 'LeftHand': 'LeftHand',
+    'RightUpLeg': 'RightUpLeg', 'RightLeg': 'RightLeg', 'RightFoot': 'RightFoot',
+    'LeftUpLeg': 'LeftUpLeg', 'LeftLeg': 'LeftLeg', 'LeftFoot': 'LeftFoot',
+    'RightEye': 'RightEye', 'LeftEye': 'LeftEye',
+    'ear_r': 'RightEar', 'ear_l': 'LeftEar',
+}
+
+# hands part names
+hand_parts = [
+    'LeftHand',
+    'LeftHandThumb1', 'LeftHandThumb2', 'LeftHandThumb3', 'LeftHandThumb4',
+    'LeftHandIndex1', 'LeftHandIndex2', 'LeftHandIndex3', 'LeftHandIndex4',
+    'LeftHandMiddle1', 'LeftHandMiddle2', 'LeftHandMiddle3', 'LeftHandMiddle4',
+    'LeftHandRing1', 'LeftHandRing2', 'LeftHandRing3', 'LeftHandRing4',
+    'LeftHandPinky1', 'LeftHandPinky2', 'LeftHandPinky3', 'LeftHandPinky4',
+    'RightHand', 
+    'RightHandThumb1', 'RightHandThumb2', 'RightHandThumb3', 'RightHandThumb4',
+    'RightHandIndex1', 'RightHandIndex2', 'RightHandIndex3', 'RightHandIndex4',
+    'RightHandMiddle1', 'RightHandMiddle2', 'RightHandMiddle3', 'RightHandMiddle4',
+    'RightHandRing1', 'RightHandRing2', 'RightHandRing3', 'RightHandRing4',
+    'RightHandPinky1', 'RightHandPinky2', 'RightHandPinky3', 'RightHandPinky4',
+]
+
 # function to generate file name with timestamp and a random 8 digit number
 # timestamp format: %Y%m%d_%H%M%S
-# return: baseFileName_timestamp_random8digit
+# return: baseFileName_timestamp_random8digit if baseFileName is not None
+#         timestamp_random8digit if baseFileName is None
 def generate_file_name(baseFileName=None):
     timestamp = time.strftime("%Y%m%d%H%M%S", time.localtime())
     random8digit = random.randint(10000000, 99999999)
@@ -31,7 +60,8 @@ def look_at(obj_name, point=Vector((0, 0, 0))):
 
 
 # function to set camera position and rotation randomly
-def set_camera(scope=1.25, camera=bpy.data.objects['Camera'], offset_scope=0.0):
+def set_camera(scope=1.25, camera=None, offset_scope=0.0):
+    if camera is None: camera = bpy.context.scene.camera
     # set camera position
     camera.location = Vector((random.uniform(2, 2.5), random.uniform(-scope, scope), random.uniform(-scope, scope)))
     # random point to look at
@@ -91,23 +121,25 @@ def fast_render(file_prefix, image_dir='./', width=512, height=512, border_data=
     return [scene.render.border_max_x - scene.render.border_min_x, scene.render.border_max_y - scene.render.border_min_y]
 
 
-# function to list objects in scene
-def list_objects():
-    return bpy.data.objects.keys()
-
 # function to convert world space coordinates to camera space coordinates 2d
-# normalized return value is in range [0, 1]
-def to_camera_space_2d(vector, camera=bpy.data.objects['Camera']):
+# normalized return value is in range [0, 1] if clamp is True
+def to_camera_space_2d(vector, camera=None, clamp=True):
+    if camera is None:
+        camera = bpy.context.scene.camera
+
     scene = bpy.context.scene
     co = bpy_extras.object_utils.world_to_camera_view(scene, camera, vector)
-    # clamp to [0, 1]
-    co.x = max(0, min(1, co.x))
-    co.y = max(0, min(1, co.y))
-    return Vector((co.x, co.y))
+    if clamp:
+        # clamp to [0, 1]
+        co.x = max(0, min(1, co.x))
+        co.y = max(0, min(1, co.y))
+    # keep 6 decimal places
+    return (round(co.x, 6), round(co.y, 6))
 
 
 # function to get object bounding box
-def get_bounding_box_3d(obj_name, camera=bpy.data.objects['Camera']):
+def get_bounding_box_3d(obj_name, camera=None):
+    if camera is None: camera = bpy.context.scene.camera
     # get object bounding box
     obj = bpy.data.objects[obj_name]
     # get bounding box
@@ -123,13 +155,16 @@ def get_bounding_box_3d(obj_name, camera=bpy.data.objects['Camera']):
     return _bbox
 
 
-def get_bounding_box_2d(obj_name, camera=bpy.data.objects['Camera']):
+# function to get object bounding box in camera space
+# normalized return value is in range [0, 1] if clamp is True
+def get_bounding_box_2d(obj_name, camera=None, is_clamp=True):
+    if camera is None: camera = bpy.context.scene.camera
     #Get the inverse transformation matrix
     matrix = camera.matrix_world.normalized().inverted()
     #Create a new mesh data block, using the inverse transform matrix to undo any transformations
     dg = bpy.context.evaluated_depsgraph_get()
     mesh_object = bpy.data.objects[obj_name]
-    ob = mesh_object.evaluated_get(dg) #this gives us the evaluated version of the object. Aka with all modifiers and deformations applied.
+    ob = mesh_object.evaluated_get(dg) #this gives us the evaluated version of the object
     mesh = ob.to_mesh()
     #mesh = mesh_object.to_mesh()
     mesh.transform(mesh_object.matrix_world)
@@ -162,24 +197,223 @@ def get_bounding_box_2d(obj_name, camera=bpy.data.objects['Camera']):
     if not lx or not ly:
         return None
 
-    min_x = np.clip(min(lx), 0.0, 1.0).round(6)
-    max_x = np.clip(max(lx), 0.0, 1.0).round(6)
-    # # flip y axis
-    min_y = (1 - np.clip(min(ly), 0.0, 1.0)).round(6)
-    max_y = (1 - np.clip(max(ly), 0.0, 1.0)).round(6)
+    min_x = min(lx)
+    max_x = max(lx)
+    min_y = min(ly)
+    max_y = max(ly)
+
+    if is_clamp:
+        # clamp to [0, 1]
+        min_x = max(0, min(1, min_x))
+        max_x = max(0, min(1, max_x))
+        min_y = max(0, min(1, min_y))
+        max_y = max(0, min(1, max_y))
+
     # swap min and max if necessary
     if min_x > max_x: min_x, max_x = max_x, min_x
     if min_y > max_y: min_y, max_y = max_y, min_y
     # Image is not in view if both bounding points exist on the same side
     if min_x == max_x or min_y == max_y:
         return None
+    # flip y axis and keep 6 decimal places
+    return [round(min_x, 6), round(1 - max_y, 6), round(max_x, 6), round(1 - min_y, 6)]
 
-    return [min_x, min_y, max_x, max_y]
+
+# function to load fbxs with manual foward axis, Z up, Y forward
+def load_animation(filepath):
+    # manual orientation, Y forward, Z up
+    bpy.ops.import_scene.fbx(
+        filepath=filepath,
+        axis_forward='Y',
+        axis_up='Z',
+        use_manual_orientation=True,
+        use_custom_normals=True,
+        use_image_search=False,
+        use_alpha_decals=False,
+        decal_offset=0.0,
+        use_anim=True,
+        anim_offset=1.0,
+        bake_space_transform = False,
+        use_prepost_rot = False,
+        use_custom_props=True,
+        use_custom_props_enum_as_string=True,
+        ignore_leaf_bones=True,
+        force_connect_children=False,
+        automatic_bone_orientation=False,
+    )
+    # rename the fbx to the file name
+    fbx_name = filepath.split("\\")[-1].split(".")[0]
+    # delete same name animation if exists
+    if fbx_name in bpy.data.actions:
+        bpy.data.actions.remove(bpy.data.actions[fbx_name])
+    # rename their animation to the file name
+    bpy.context.selected_objects[0].animation_data.action.name = fbx_name
+    # delete the object and keep animation
+    bpy.ops.object.delete(use_global=False, confirm=False)
+    # return animation name
+    return fbx_name
 
 
-def list_all_visible_armas():
-    return [obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.visible_get()]
+# function to load all animations in a directory
+def load_animations(dir_path):
+    # delete all animations
+    for anim in bpy.data.actions:
+        bpy.data.actions.remove(anim)
+    anims = []
+    for file in os.listdir(dir_path):
+        if file.endswith(".fbx"):
+            anims.append(load_animation(os.path.join(dir_path, file)))
+    return anims
+
+
+# function to apply animation to object's bones
+def apply_animation(anim_name, obj_name):
+    # if the object has no animation, create an empty animation
+    if bpy.data.objects[obj_name].animation_data is None:
+        bpy.data.objects[obj_name].animation_data_create()
+    # select the object
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.data.objects[obj_name].select_set(True)
+    # select the animation
+    bpy.data.objects[obj_name].animation_data.action = bpy.data.actions[anim_name]
+    # apply animation to object
+    bpy.ops.nla.bake(frame_start=0, frame_end=0, only_selected=False, visual_keying=True, clear_constraints=False, use_current_action=True, bake_types={'POSE'})
+
+
+# function to frame the animation via given frame number
+def set_frame(anim_name, obj_name, frame_num=None):
+    action = bpy.data.actions[anim_name]
+    # select the animation
+    bpy.data.objects[obj_name].animation_data.action = action
+    # if frame number is not given, randomize it
+    if frame_num is None or frame_num == -1:
+        frame_num = random.randint(action.frame_range[0], action.frame_range[1])
+    # check if frame number is in range
+    if frame_num > action.frame_range[1]:
+        frame_num = action.frame_range[1]
+    if frame_num < action.frame_range[0]:
+        frame_num = action.frame_range[0]
+    # set the frame
+    bpy.context.scene.frame_set(frame_num)
+    return frame_num
+
+
+# function to set animation frame to every visible armature's action
+def set_frame_all(frame_num=None):
+    for obj in list_armatures(visible_only=True):
+        set_frame(obj.animation_data.action.name, obj.name, frame_num)
+
+
+# function to list objects in scene
+def list_objects():
+    return bpy.data.objects.keys()
+
+
+# function to list all animations in the scene
+def list_animations():
+    anim_list = []
+    for anim in bpy.data.actions:
+        anim_list.append(anim.name)
+    return anim_list
+
+
+def list_armatures(visible_only=True):
+    if visible_only:
+        return [obj for obj in bpy.data.objects if obj.type == 'ARMATURE' and obj.visible_get()]
+    return [obj for obj in bpy.data.objects if obj.type == 'ARMATURE']
+
+
+# function to list all bones in the scene via given object name
+def list_bones(obj_name):
+    bone_list = []
+    for bone in bpy.data.objects[obj_name].pose.bones:
+        bone_list.append(bone.name)
+    return bone_list
+
+
+# function to list bones position in the scene via given object name, bone name
+def list_bone_pos(obj_name, bone_name):
+    bone_pos = []
+    for bone in bpy.data.objects[obj_name].pose.bones:
+        if bone.name == bone_name:
+            bone_pos.append(bone.location)
+    return bone_pos
+
+
+# function to list hands bones
+def get_hand_to_dict(obj_name):
+    hand_bone_dict = {}
+    for bone in bpy.data.objects[obj_name].pose.bones:
+        if bone.name in hand_parts:
+            # get the bone position (world space)
+            hand_bone_dict[bone.name] = to_camera_space_2d(bone.matrix.to_translation())
+    return hand_bone_dict
+
+
+# function to list pose bones
+def get_pose_to_dict(obj_name):
+    pose_bone_dict = {}
+    for bone in bpy.data.objects[obj_name].pose.bones:
+        if bone.name in pose_parts.keys():
+            pose_bone_dict[pose_parts[bone.name]] = to_camera_space_2d(bone.matrix.to_translation())
+    return pose_bone_dict
+
+
+# function to list all .fbx file names via given directory and file extension
+def load_files(directory, extension):
+    file_list = []
+    for file in os.listdir(directory):
+        if file.endswith(extension):
+            file_list.append(file)
+    return file_list
+
+
+# function to hide all armature objects in the scene including its mesh
+def hide_armature():
+    # hide all armature objects
+    for obj in list_armatures(visible_only=False):
+        bpy.data.objects[obj.name].hide_viewport = True
+        bpy.data.objects[obj.name].hide_render = True
+    # hide all armature objects' mesh
+    for obj in bpy.data.objects:
+        if obj.parent is not None and obj.parent.type == "ARMATURE":
+            obj.hide_viewport = True
+            obj.hide_render = True
+
+
+# function to hide all armature objects in the scene, but random pick one to show and show its mesh
+def show_armature(num=None):
+    random_armature = []
+    # hide all armature objects
+    hide_armature()
+
+    # list all armature objects
+    if num is None: num = 1
+    arma_list = list_armatures(False)
+    random_armature = random.sample(arma_list, num)
+
+    for arms in random_armature:
+        bpy.data.objects[arms.name].hide_viewport = False
+        bpy.data.objects[arms.name].hide_render = False
+        # show its mesh
+        for child in bpy.data.objects[arms.name].children:
+            child.hide_viewport = False
+            child.hide_render = False
+
+    return random_armature
+
+
+# function to random animation to all armature objects in the scene
+def random_animation():
+    for obj in list_armatures(False):
+        # get all animations
+        anims = list_animations()
+        # random animation
+        anim = random.choice(anims)
+        # apply animation to object
+        apply_animation(anim, obj.name)
 
 
 def get_obj_from_armature(armature):
     return [obj for obj in bpy.data.objects if obj.parent == armature and obj.visible_get()]
+
