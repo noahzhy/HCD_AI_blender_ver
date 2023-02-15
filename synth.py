@@ -30,6 +30,10 @@ class SynthData():
         self.reset()
 
     def reset(self):
+        # clean all action
+        for arma in list_armatures(True):
+            arma.animation_data_clear()
+
         self.persons = []
         self.file_name = generate_file_name()
         # set name of output file
@@ -47,9 +51,7 @@ class SynthData():
         self.nodes["angle of rotation"].outputs[0].default_value = float(angle)
         # render and save
         if not self.debug: self.render_layers()
-
         # set name of output file
-
         print("rendering folder path: ", os.path.join(self.outpath))
 
     def render_layers(self, main_viewlayer='ViewLayer', part_viewlayer='ViewLayer_part'):
@@ -71,32 +73,48 @@ class SynthData():
                     bpy.context.object.modifiers["GeometryNodes"]["Input_2"] = 0
         bpy.ops.render.render(write_still=True, layer=main_viewlayer)
 
-    def gen_data(self):
-        self.reset()
-        show_armature(1)
-        random_animation()
-        set_frame_all(-1)
-        self.render()
-        self.gen_xml()
-
     def gen_xml(self):
         arma_list = list_armatures(visible_only=True)
         for idx, arma in enumerate(arma_list):
             # get mesh object
             mesh_obj = get_obj_from_armature(arma)[0]
             bbox = get_bounding_box_2d(mesh_obj.name, is_clamp=True)
+            if bbox is None: continue
+            # get keypoint
             pose = get_pose_to_dict(arma.name)
             hand = get_hand_to_dict(arma.name)
             person = Person(bbox, pose, hand)
             self.persons.append(person)
 
+        # get render x y
+        render_x = bpy.context.scene.render.resolution_x
+        render_y = bpy.context.scene.render.resolution_y
+        # get render img format channel
+        render_format = bpy.context.scene.render.image_settings.file_format
+        # get render img channel
+        render_c = 3 if render_format == "RGB" else 4
         # get output file name
         save_xml(
             self.persons,
             "img_{}{:04d}.png".format(self.file_name, bpy.context.scene.frame_current),
             self.outpath,
-            512, 512, 4
+            render_x, render_y, render_c
         )
+
+    def gen_data(self):
+        self.reset()
+        random_light()
+        show_armature(1)
+        random_armature_position()
+        random_animation()
+        set_frame_all(-1)
+        # update camera
+        v3 = get_bone_pos('nose')
+        print("LeftHand pos: ", v3)
+        random_camera(dst_point=v3, offset_scope=0.1)
+
+        self.render()
+        self.gen_xml()
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ class Person():
             xml_txt += """\t\t<truncated>1</truncated>\n"""
         xml_txt += """\t\t<difficult>0</difficult>\n"""
         xml_txt += bbox2xml(self.bbox)
-        xml_txt += pose2xml(self.pose, "pose")
+        xml_txt += pose2xml(self.pose, "body")
         xml_txt += pose2xml(self.hand, "hand")
         xml_txt += """\t</object>\n"""
         return xml_txt
@@ -86,8 +86,6 @@ def pose2xml(keypoints, label_name:str):
 
 # function to generate xml file
 def save_xml(objects:list, img_path:str, xml_path:str, img_width:int, img_height:int, img_channel:int):
-    # img_path = "images/000000000001.jpg"
-    # img_name = "000000000001.jpg"
     img_name = os.path.basename(img_path)
     xml_txt = """"""  # xml file text
     xml_txt += """<?xml version="1.0" encoding="UTF-8"?>\n"""

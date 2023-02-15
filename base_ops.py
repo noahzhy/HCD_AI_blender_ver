@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import math
 import random
 
 import bpy
@@ -50,8 +51,11 @@ def generate_file_name(baseFileName=None):
 
 
 # function to make object look at the given point
-def look_at(obj_name, point=Vector((0, 0, 0))):
-    obj = bpy.data.objects[obj_name]
+def look_at(obj_name=None, point=Vector((0, 0, 0))):
+    if obj_name is None:
+        obj = bpy.context.scene.camera
+    else:
+        obj = bpy.data.objects[obj_name]
     loc = obj.location
     rot = obj.rotation_euler
     direction = point - loc
@@ -59,22 +63,27 @@ def look_at(obj_name, point=Vector((0, 0, 0))):
     obj.rotation_euler = rot.to_euler()
 
 
-# function to set camera position and rotation randomly
-def set_camera(scope=1.25, camera=None, offset_scope=0.0):
+def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_scope=0.0):
+    x, y, z = dst_point
     if camera is None: camera = bpy.context.scene.camera
     # set camera position
-    camera.location = Vector((random.uniform(2, 2.5), random.uniform(-scope, scope), random.uniform(-scope, scope)))
+    camera.location = Vector((
+        random.uniform(x-pos_scale, x+pos_scale),
+        random.uniform(y-0.5*pos_scale, y-1.5*pos_scale),
+        random.uniform(z-pos_scale, z+pos_scale)
+    ))
     # random point to look at
     point = Vector((
-        random.uniform(-offset_scope, offset_scope),
-        random.uniform(-offset_scope, offset_scope),
-        random.uniform(-offset_scope, offset_scope)
+        random.uniform(x - offset_scope, x + offset_scope),
+        # random.uniform(y - offset_scope, y + offset_scope),
+        y,
+        random.uniform(z - offset_scope, z + offset_scope)
     ))
     # set camera rotation
     look_at('Camera', point)
     # enable camera depth of field and set distance
     camera.data.dof.use_dof = True
-    camera.data.dof.focus_distance = random.uniform(1.0, 4.0)
+    camera.data.dof.focus_distance = random.uniform(0.5, 1.5)
     # random f-stop
     camera.data.dof.aperture_fstop = random.uniform(3.0, 10.0)
 
@@ -88,12 +97,10 @@ def random_light(light_list=[]):
 
     # random light power and color
     for light in light_list:
-        light.data.energy = random.uniform(10, 100)
+        light.data.energy = random.uniform(500, 2000)
         light.data.color = (random.uniform(0.5, 1.5), random.uniform(0.5, 1.5), random.uniform(0.5, 1.5))
         # radius
         light.data.shadow_soft_size = random.uniform(0.05, 0.5)
-        # spot size
-        light.data.spot_size = random.uniform(0.5, 1.5)
 
 
 # border_data = [xmin, ymin, xmax, ymax]
@@ -129,6 +136,8 @@ def to_camera_space_2d(vector, camera=None, clamp=True):
 
     scene = bpy.context.scene
     co = bpy_extras.object_utils.world_to_camera_view(scene, camera, vector)
+    # flip y axis
+    co.y = 1 - co.y
     if clamp:
         # clamp to [0, 1]
         co.x = max(0, min(1, co.x))
@@ -280,6 +289,27 @@ def apply_animation(anim_name, obj_name):
     bpy.ops.nla.bake(frame_start=0, frame_end=0, only_selected=False, visual_keying=True, clear_constraints=False, use_current_action=True, bake_types={'POSE'})
 
 
+# function to random animation to all armature objects in the scene
+def random_animation():
+    for obj in list_armatures(True):
+        # get all animations
+        anims = list_animations()
+        # random animation
+        anim = random.choice(anims)
+        # apply animation to object
+        apply_animation(anim, obj.name)
+
+
+# function to set random armature position via given armature name
+def random_armature_position(scope=1.0, rotate_scope=math.pi, scale_scope=.5):
+    for obj in list_armatures(True):
+        # randomize position
+        obj.location = (random.uniform(-scope, scope), random.uniform(-scope, scope), random.uniform(-scope, scope))
+        # obj.rotation_euler = (0, 0, random.uniform(-rotate_scope, rotate_scope))
+        # _scale = random.uniform(1 - scale_scope, 1 + scale_scope)
+        # obj.scale = (_scale, _scale, _scale)
+
+
 # function to frame the animation via given frame number
 def set_frame(anim_name, obj_name, frame_num=None):
     action = bpy.data.actions[anim_name]
@@ -340,13 +370,30 @@ def list_bone_pos(obj_name, bone_name):
     return bone_pos
 
 
+# function to get bone position via given armature name, bone name
+def get_bone_pos(bone_name):
+    for armas in list_armatures(visible_only=True):
+        bpy.data.objects[armas.name].select_set(True)
+        for bone in armas.pose.bones:
+            # get global position in 3d space
+            if bone.name == bone_name:
+                mv = armas.convert_space(pose_bone=bone, matrix=bone.matrix, from_space='POSE', to_space='WORLD')
+                mv = mv.to_translation()
+
+                # add the position of the armature
+                mv += armas.location
+
+                print(mv)
+                return mv
+
+
 # function to list hands bones
 def get_hand_to_dict(obj_name):
     hand_bone_dict = {}
     for bone in bpy.data.objects[obj_name].pose.bones:
         if bone.name in hand_parts:
             # get the bone position (world space)
-            hand_bone_dict[bone.name] = to_camera_space_2d(bone.matrix.to_translation())
+            hand_bone_dict[bone.name] = to_camera_space_2d(bone.matrix.to_translation(), clamp=False)
     return hand_bone_dict
 
 
@@ -355,7 +402,9 @@ def get_pose_to_dict(obj_name):
     pose_bone_dict = {}
     for bone in bpy.data.objects[obj_name].pose.bones:
         if bone.name in pose_parts.keys():
-            pose_bone_dict[pose_parts[bone.name]] = to_camera_space_2d(bone.matrix.to_translation())
+            if bone.name == 'nose':
+                print(bone.name, bone.matrix.to_translation())
+            pose_bone_dict[pose_parts[bone.name]] = to_camera_space_2d(bone.matrix.to_translation(), clamp=False)
     return pose_bone_dict
 
 
@@ -401,17 +450,6 @@ def show_armature(num=None):
             child.hide_render = False
 
     return random_armature
-
-
-# function to random animation to all armature objects in the scene
-def random_animation():
-    for obj in list_armatures(False):
-        # get all animations
-        anims = list_animations()
-        # random animation
-        anim = random.choice(anims)
-        # apply animation to object
-        apply_animation(anim, obj.name)
 
 
 def get_obj_from_armature(armature):
