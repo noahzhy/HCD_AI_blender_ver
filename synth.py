@@ -43,12 +43,6 @@ class SynthData():
         self.nodes["File Output"].file_slots[3].path = "body_{}".format(self.file_name)
 
     def render(self):
-        # random flip axis
-        self.nodes["flip"].axis = random.choice(["X", "Y", "XY"])
-        # random angle in degrees [0, 90, 180, 270]
-        angle = random.randint(0, 3) * 90
-        # set rotation angle
-        self.nodes["angle of rotation"].outputs[0].default_value = float(angle)
         # render and save
         if not self.debug: self.render_layers()
         # set name of output file
@@ -64,6 +58,9 @@ class SynthData():
                     # select mesh object
                     bpy.context.view_layer.objects.active = child
                     bpy.context.object.modifiers["GeometryNodes"]["Input_2"] = 1
+        # close depth of field
+        bpy.context.scene.camera.data.dof.use_dof = False
+        bpy.context.scene.render.film_transparent = True
         bpy.ops.render.render(write_still=True, layer=part_viewlayer)
         # render color image
         for obj in armas:
@@ -71,6 +68,9 @@ class SynthData():
                 if child.type == "MESH":
                     bpy.context.view_layer.objects.active = child
                     bpy.context.object.modifiers["GeometryNodes"]["Input_2"] = 0
+        # open depth of field
+        bpy.context.scene.camera.data.dof.use_dof = True
+        bpy.context.scene.render.film_transparent = False
         bpy.ops.render.render(write_still=True, layer=main_viewlayer)
 
     def gen_xml(self):
@@ -103,18 +103,19 @@ class SynthData():
 
     def gen_data(self):
         self.reset()
-        random_light()
         show_armature(1)
-        random_armature_position()
         random_animation()
         set_frame_all(-1)
+        random_armature_position()
+
         # update camera
         v3 = get_bone_pos('nose')
         print("LeftHand pos: ", v3)
+        random_light(target_origin=v3, scope=1.0)
         random_camera(dst_point=v3, offset_scope=0.1)
 
-        self.render()
-        self.gen_xml()
+        # self.render()
+        # self.gen_xml()
 
 
 if __name__ == "__main__":

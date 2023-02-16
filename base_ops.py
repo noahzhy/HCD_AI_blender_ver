@@ -69,7 +69,7 @@ def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_s
     # set camera position
     camera.location = Vector((
         random.uniform(x-pos_scale, x+pos_scale),
-        random.uniform(y-0.5*pos_scale, y-1.5*pos_scale),
+        random.uniform(y-0.75*pos_scale, y-1.5*pos_scale),
         random.uniform(z-pos_scale, z+pos_scale)
     ))
     # random point to look at
@@ -88,7 +88,7 @@ def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_s
     camera.data.dof.aperture_fstop = random.uniform(3.0, 10.0)
 
 
-def random_light(light_list=[]):
+def random_light(light_list=[], target_origin=Vector((0,0,0)), scope=0.0, power_scope=[500, 1000]):
     # list all lights in scene
     if len(light_list) == 0:
         for i in list_objects():
@@ -97,10 +97,16 @@ def random_light(light_list=[]):
 
     # random light power and color
     for light in light_list:
-        light.data.energy = random.uniform(500, 2000)
+        # random light postion
+        light.location = Vector((
+            random.uniform(target_origin[0] - scope, target_origin[0] + scope),
+            random.uniform(target_origin[1] - scope, target_origin[1] + scope),
+            random.uniform(target_origin[2] - scope, target_origin[2] + scope)
+        ))
+        light.data.energy = random.uniform(power_scope[0], power_scope[1])
         light.data.color = (random.uniform(0.5, 1.5), random.uniform(0.5, 1.5), random.uniform(0.5, 1.5))
         # radius
-        light.data.shadow_soft_size = random.uniform(0.05, 0.5)
+        light.data.shadow_soft_size = random.uniform(1.0, 2.5)
 
 
 # border_data = [xmin, ymin, xmax, ymax]
@@ -301,13 +307,14 @@ def random_animation():
 
 
 # function to set random armature position via given armature name
-def random_armature_position(scope=1.0, rotate_scope=math.pi, scale_scope=.5):
+def random_armature_position(scope=2.5, rotate_scope=30, scale_scope=.5):
     for obj in list_armatures(True):
         # randomize position
-        obj.location = (random.uniform(-scope, scope), random.uniform(-scope, scope), random.uniform(-scope, scope))
+        obj.location = (random.uniform(-scope, scope), random.uniform(-scope, scope), obj.location.z)
         # obj.rotation_euler = (0, 0, random.uniform(-rotate_scope, rotate_scope))
         # _scale = random.uniform(1 - scale_scope, 1 + scale_scope)
         # obj.scale = (_scale, _scale, _scale)
+        bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
 
 
 # function to frame the animation via given frame number
@@ -372,6 +379,7 @@ def list_bone_pos(obj_name, bone_name):
 
 # function to get bone position via given armature name, bone name
 def get_bone_pos(bone_name):
+    target_bone_pos = Vector((0, 0, 0))
     for armas in list_armatures(visible_only=True):
         bpy.data.objects[armas.name].select_set(True)
         for bone in armas.pose.bones:
@@ -382,9 +390,13 @@ def get_bone_pos(bone_name):
 
                 # add the position of the armature
                 mv += armas.location
+                # consider the rotation of the armature
+                # mv.rotate(armas.rotation_euler)
 
                 print(mv)
-                return mv
+                target_bone_pos = mv
+    
+    return target_bone_pos
 
 
 # function to list hands bones
