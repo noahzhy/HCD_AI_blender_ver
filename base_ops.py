@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import glob
 import math
 import random
 
@@ -88,7 +89,7 @@ def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_s
     camera.data.dof.aperture_fstop = random.uniform(3.0, 10.0)
 
 
-def random_light(light_list=[], target_origin=Vector((0,0,0)), scope=0.0, power_scope=[500, 1000]):
+def random_light(light_list=[], target_origin=Vector((0,0,0)), scope=0.0, power_scope=[250, 750]):
     # list all lights in scene
     if len(light_list) == 0:
         for i in list_objects():
@@ -152,39 +153,21 @@ def to_camera_space_2d(vector, camera=None, clamp=True):
     return (round(co.x, 6), round(co.y, 6))
 
 
-# function to get object bounding box
-def get_bounding_box_3d(obj_name, camera=None):
-    if camera is None: camera = bpy.context.scene.camera
-    # get object bounding box
-    obj = bpy.data.objects[obj_name]
-    # get bounding box
-    bbox = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-    # convert to camera space
-    _bbox = [to_camera_space_2d(vector, camera) for vector in bbox]
-    # convert Vector to numpy array
-    _bbox = np.array([np.array(vector) for vector in _bbox])
-    # flip y axis
-    _bbox[:, 1] = 1 - _bbox[:, 1]
-    # keep four digits after decimal point
-    _bbox = np.around(_bbox, decimals=6)
-    return _bbox
-
-
 # function to get object bounding box in camera space
 # normalized return value is in range [0, 1] if clamp is True
 def get_bounding_box_2d(obj_name, camera=None, is_clamp=True):
     if camera is None: camera = bpy.context.scene.camera
-    #Get the inverse transformation matrix
+    # Get the inverse transformation matrix
     matrix = camera.matrix_world.normalized().inverted()
-    #Create a new mesh data block, using the inverse transform matrix to undo any transformations
+    # Create a new mesh data block, using the inverse transform matrix to undo any transformations
     dg = bpy.context.evaluated_depsgraph_get()
     mesh_object = bpy.data.objects[obj_name]
-    ob = mesh_object.evaluated_get(dg) #this gives us the evaluated version of the object
+    ob = mesh_object.evaluated_get(dg) # this gives us the evaluated version of the object
     mesh = ob.to_mesh()
     #mesh = mesh_object.to_mesh()
     mesh.transform(mesh_object.matrix_world)
     mesh.transform(matrix)
-    #Get the world coordinates for the camera frame bounding box, before any transformations
+    # Get the world coordinates for the camera frame bounding box, before any transformations
     scene = bpy.context.scene
     frame = [-v for v in camera.data.view_frame(scene=scene)[:3]]
     lx = []
@@ -193,17 +176,19 @@ def get_bounding_box_2d(obj_name, camera=None, is_clamp=True):
         co_local = v.co
         z = -co_local.z
 
-        if z <= 0.0:
-            #Vertex is behind the camera; ignore it
-            continue
+        if z <= 0.0: continue
         else:
-            #Perspective division
+            # Perspective division
             frame = [(v / (v.z / z)) for v in frame]
+
         min_x, max_x = frame[1].x, frame[2].x
         min_y, max_y = frame[0].y, frame[1].y
-        
+
         x = (co_local.x - min_x) / (max_x - min_x)
         y = (co_local.y - min_y) / (max_y - min_y)
+
+        if x < 0.0 or x > 1.0 or y < 0.0 or y > 1.0: continue
+
         lx.append(x)
         ly.append(y)
 
@@ -232,6 +217,24 @@ def get_bounding_box_2d(obj_name, camera=None, is_clamp=True):
         return None
     # flip y axis and keep 6 decimal places
     return [round(min_x, 6), round(1 - max_y, 6), round(max_x, 6), round(1 - min_y, 6)]
+
+
+# function to get object bounding box
+def get_bounding_box_3d(obj_name, camera=None):
+    if camera is None: camera = bpy.context.scene.camera
+    # get object bounding box
+    obj = bpy.data.objects[obj_name]
+    # get bounding box
+    bbox = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    # convert to camera space
+    _bbox = [to_camera_space_2d(vector, camera) for vector in bbox]
+    # convert Vector to numpy array
+    _bbox = np.array([np.array(vector) for vector in _bbox])
+    # flip y axis
+    _bbox[:, 1] = 1 - _bbox[:, 1]
+    # keep four digits after decimal point
+    _bbox = np.around(_bbox, decimals=6)
+    return _bbox
 
 
 # function to load fbxs with manual foward axis, Z up, Y forward
@@ -467,3 +470,24 @@ def show_armature(num=None):
 def get_obj_from_armature(armature):
     return [obj for obj in bpy.data.objects if obj.parent == armature and obj.visible_get()]
 
+
+# hdrs function
+def load_hdrs(directory=None):
+    if directory is None: os.path.join(os.path.dirname(bpy.data.filepath), "hdrs")
+
+    hdr_list = glob.glob(os.path.join(directory, "*.*"))
+    print(hdr_list)
+
+    # load it in blender and rename it using basename
+    for hdr in hdr_list:
+        bpy.ops.image.open(filepath=hdr, files=[{"name":hdr}], relative_path=True, show_multiview=False)
+
+
+def set_hdr(hdr_name):
+    bpy.data.worlds['World'].node_tree.nodes['Environment Texture'].image = hdr_name
+
+
+def random_hdr():
+    # list all images which start with 'env'
+    hdr_list = [img for img in bpy.data.images if img.name.startswith('env')]
+    set_hdr(random.choice(hdr_list))

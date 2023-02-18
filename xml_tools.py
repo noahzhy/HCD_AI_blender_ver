@@ -58,8 +58,8 @@ def bbox2xml(bbox):
     # convert to xml
     xml_txt = """\t\t<bndbox>\n"""
     xml_txt += """\t\t\t<xmin>""" + str(xmin) + """</xmin>\n"""
-    xml_txt += """\t\t\t<ymin>""" + str(ymin) + """</ymin>\n"""
     xml_txt += """\t\t\t<xmax>""" + str(xmax) + """</xmax>\n"""
+    xml_txt += """\t\t\t<ymin>""" + str(ymin) + """</ymin>\n"""
     xml_txt += """\t\t\t<ymax>""" + str(ymax) + """</ymax>\n"""
     xml_txt += """\t\t</bndbox>\n"""
     return xml_txt

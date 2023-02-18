@@ -18,18 +18,26 @@ from xml_tools import *
 
 
 class SynthData():
-    def __init__(self, num, debug=False, outpath=""):
+    def __init__(self, num, debug=False, outpath="", hdr_path=""):
         self.num = num
         self.debug = debug
         self.outpath = outpath
+        self.hdr_path = hdr_path
         # init scene
         scene = bpy.context.scene
         scene.use_nodes = True
         self.nodes = scene.node_tree.nodes
         self.nodes["File Output"].base_path = outpath
+
+        # load env map
+        print("hdr path: ", hdr_path)
+        load_hdrs(self.hdr_path)
+
         self.reset()
 
     def reset(self):
+        # random select a hdr
+        random_hdr()
         # clean all action
         for arma in list_armatures(True):
             arma.animation_data_clear()
@@ -38,13 +46,15 @@ class SynthData():
         self.file_name = generate_file_name()
         # set name of output file
         self.nodes["File Output"].file_slots[0].path = "img_{}".format(self.file_name)
-        self.nodes["File Output"].file_slots[1].path = "mask_{}".format(self.file_name)
-        self.nodes["File Output"].file_slots[2].path = "depth_{}".format(self.file_name)
-        self.nodes["File Output"].file_slots[3].path = "body_{}".format(self.file_name)
+        self.nodes["File Output"].file_slots[1].path = "body_{}".format(self.file_name)
+        self.nodes["File Output"].file_slots[2].path = "mask_{}".format(self.file_name)
+        self.nodes["File Output"].file_slots[3].path = "depth_{}".format(self.file_name)
 
     def render(self):
         # render and save
-        if not self.debug: self.render_layers()
+        if not self.debug:
+            self.render_layers()
+            self.gen_xml()
         # set name of output file
         print("rendering folder path: ", os.path.join(self.outpath))
 
@@ -110,15 +120,15 @@ class SynthData():
 
         # update camera
         v3 = get_bone_pos('nose')
-        print("LeftHand pos: ", v3)
+        print("nose pos: ", v3)
         random_light(target_origin=v3, scope=1.0)
         random_camera(dst_point=v3, offset_scope=0.1)
 
-        # self.render()
-        # self.gen_xml()
+        self.render()
 
 
 if __name__ == "__main__":
     output_path = os.path.join(os.path.dirname(bpy.data.filepath), "data")
-    ss = SynthData(1, debug=False, outpath=output_path)
+    hdr_path = os.path.join(os.path.dirname(bpy.data.filepath), "hdrs")
+    ss = SynthData(1, debug=False, outpath=output_path, hdr_path=hdr_path)
     ss.gen_data()
