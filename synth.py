@@ -18,21 +18,20 @@ from xml_tools import *
 
 
 class SynthData():
-    def __init__(self, num, debug=False, outpath="", hdr_path=""):
+    def __init__(self, num, debug=False, outpath="", hdr_path="", env_light=True):
         self.num = num
         self.debug = debug
         self.outpath = outpath
         self.hdr_path = hdr_path
+        self.env_light = env_light
         # init scene
         scene = bpy.context.scene
         scene.use_nodes = True
         self.nodes = scene.node_tree.nodes
         self.nodes["File Output"].base_path = outpath
-
         # load env map
-        print("hdr path: ", hdr_path)
         load_hdrs(self.hdr_path)
-
+        # reset the export node value
         self.reset()
 
     def reset(self):
@@ -88,7 +87,7 @@ class SynthData():
         for idx, arma in enumerate(arma_list):
             # get mesh object
             mesh_obj = get_obj_from_armature(arma)[0]
-            bbox = get_bounding_box_2d(mesh_obj.name, is_clamp=True)
+            bbox = get_bounding_box_2d(mesh_obj.name)
             if bbox is None: continue
             # get keypoint
             pose = get_pose_to_dict(arma.name)
@@ -119,16 +118,20 @@ class SynthData():
         random_armature_position()
 
         # update camera
-        v3 = get_bone_pos('nose')
-        print("nose pos: ", v3)
-        random_light(target_origin=v3, scope=1.0)
-        random_camera(dst_point=v3, offset_scope=0.1)
+        armature = list_armatures(visible_only=True)[0]
+        v3 = get_bone_pos_global(armature, 'nose')
+        # v3 = get_bone_pos_global(armature, 'LeftHand')
+        random_camera(dst_point=v3, offset_scope=0.1, pos_scale=.5)
+
+        if self.env_light:
+            random_light(target_origin=v3, scope=1.0)
 
         self.render()
 
 
 if __name__ == "__main__":
-    output_path = os.path.join(os.path.dirname(bpy.data.filepath), "data")
-    hdr_path = os.path.join(os.path.dirname(bpy.data.filepath), "hdrs")
+    base_dir = os.path.dirname(bpy.data.filepath)
+    output_path = os.path.join(base_dir, "data")
+    hdr_path = os.path.join(base_dir, "hdrs")
     ss = SynthData(1, debug=False, outpath=output_path, hdr_path=hdr_path)
     ss.gen_data()

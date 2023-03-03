@@ -9,3 +9,5 @@
 7. [x] support depth of field effect
 8. [ ] check the keypoint visibility
 9. [x] support export bounding box to xml file
+    9.1 [ ] improve the speed of export bounding box
+10. [x] skeleton occlusion detection

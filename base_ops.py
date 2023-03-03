@@ -8,9 +8,11 @@ import random
 import bpy
 import bpy_extras
 import numpy as np
-# from PIL import Image
 from mathutils import Vector
+from bpy_extras.object_utils import world_to_camera_view
 
+
+pose_head = ['nose', 'ear_r', 'ear_l', 'eye_end_r', 'eye_end_l',]
 
 # pose part names
 pose_parts = {
@@ -20,7 +22,7 @@ pose_parts = {
     'LeftArm': 'LeftArm', 'LeftForeArm': 'LeftForeArm', 'LeftHand': 'LeftHand',
     'RightUpLeg': 'RightUpLeg', 'RightLeg': 'RightLeg', 'RightFoot': 'RightFoot',
     'LeftUpLeg': 'LeftUpLeg', 'LeftLeg': 'LeftLeg', 'LeftFoot': 'LeftFoot',
-    'RightEye': 'RightEye', 'LeftEye': 'LeftEye',
+    'eye_end_r': 'RightEye', 'eye_end_l': 'LeftEye',
     'ear_r': 'RightEar', 'ear_l': 'LeftEar',
 }
 
@@ -84,9 +86,7 @@ def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_s
     look_at('Camera', point)
     # enable camera depth of field and set distance
     camera.data.dof.use_dof = True
-    camera.data.dof.focus_distance = random.uniform(0.5, 1.5)
-    # random f-stop
-    camera.data.dof.aperture_fstop = random.uniform(3.0, 10.0)
+    camera.data.dof.focus_distance = pos_scale
 
 
 def random_light(light_list=[], target_origin=Vector((0,0,0)), scope=0.0, power_scope=[250, 750]):
@@ -141,8 +141,7 @@ def to_camera_space_2d(vector, camera=None, clamp=True):
     if camera is None:
         camera = bpy.context.scene.camera
 
-    scene = bpy.context.scene
-    co = bpy_extras.object_utils.world_to_camera_view(scene, camera, vector)
+    co = world_to_camera_view(bpy.context.scene, camera, vector)
     # flip y axis
     co.y = 1 - co.y
     if clamp:
@@ -155,68 +154,53 @@ def to_camera_space_2d(vector, camera=None, clamp=True):
 
 # function to get object bounding box in camera space
 # normalized return value is in range [0, 1] if clamp is True
-def get_bounding_box_2d(obj_name, camera=None, is_clamp=True):
+def get_bounding_box_2d(obj_name, camera=None):
     if camera is None: camera = bpy.context.scene.camera
     # Get the inverse transformation matrix
     matrix = camera.matrix_world.normalized().inverted()
     # Create a new mesh data block, using the inverse transform matrix to undo any transformations
     dg = bpy.context.evaluated_depsgraph_get()
     mesh_object = bpy.data.objects[obj_name]
-    ob = mesh_object.evaluated_get(dg) # this gives us the evaluated version of the object
-    mesh = ob.to_mesh()
-    #mesh = mesh_object.to_mesh()
+    mesh = mesh_object.evaluated_get(dg).to_mesh()
     mesh.transform(mesh_object.matrix_world)
     mesh.transform(matrix)
     # Get the world coordinates for the camera frame bounding box, before any transformations
     scene = bpy.context.scene
     frame = [-v for v in camera.data.view_frame(scene=scene)[:3]]
-    lx = []
-    ly = []
+
+    # Calculate bounding box coordinates
+    lx, ly = [], []
     for v in mesh.vertices:
         co_local = v.co
         z = -co_local.z
 
-        if z <= 0.0: continue
-        else:
+        if z >= 0.0:
             # Perspective division
             frame = [(v / (v.z / z)) for v in frame]
 
-        min_x, max_x = frame[1].x, frame[2].x
-        min_y, max_y = frame[0].y, frame[1].y
+            min_x, max_x = frame[1].x, frame[2].x
+            min_y, max_y = frame[0].y, frame[1].y
 
-        x = (co_local.x - min_x) / (max_x - min_x)
-        y = (co_local.y - min_y) / (max_y - min_y)
+            x = (co_local.x - min_x) / (max_x - min_x)
+            y = (co_local.y - min_y) / (max_y - min_y)
 
-        if x < 0.0 or x > 1.0 or y < 0.0 or y > 1.0: continue
+            if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+                lx.append(x)
+                # flip y axis
+                ly.append(1 - y)
 
-        lx.append(x)
-        ly.append(y)
-
+    # Free the memory used by the mesh
     mesh_object.to_mesh_clear()
-    # Image is not in view if all the mesh verts were ignored
-    if not lx or not ly:
-        return None
 
-    min_x = min(lx)
-    max_x = max(lx)
-    min_y = min(ly)
-    max_y = max(ly)
+    # Return None if the mesh is not in view
+    if not lx or not ly: return None
 
-    if is_clamp:
-        # clamp to [0, 1]
-        min_x = max(0, min(1, min_x))
-        max_x = max(0, min(1, max_x))
-        min_y = max(0, min(1, min_y))
-        max_y = max(0, min(1, max_y))
+    # Calculate bounding box coordinates
+    min_x, max_x = min(lx), max(lx)
+    min_y, max_y = min(ly), max(ly)
 
-    # swap min and max if necessary
-    if min_x > max_x: min_x, max_x = max_x, min_x
-    if min_y > max_y: min_y, max_y = max_y, min_y
-    # Image is not in view if both bounding points exist on the same side
-    if min_x == max_x or min_y == max_y:
-        return None
-    # flip y axis and keep 6 decimal places
-    return [round(min_x, 6), round(1 - max_y, 6), round(max_x, 6), round(1 - min_y, 6)]
+    # return the result
+    return [round(min_x, 6), round(min_y, 6), round(max_x, 6), round(max_y, 6)]
 
 
 # function to get object bounding box
@@ -390,36 +374,56 @@ def get_bone_pos(bone_name):
             if bone.name == bone_name:
                 mv = armas.convert_space(pose_bone=bone, matrix=bone.matrix, from_space='POSE', to_space='WORLD')
                 mv = mv.to_translation()
-
                 # add the position of the armature
                 mv += armas.location
-                # consider the rotation of the armature
-                # mv.rotate(armas.rotation_euler)
-
-                print(mv)
                 target_bone_pos = mv
-    
+
     return target_bone_pos
 
 
 # function to list hands bones
-def get_hand_to_dict(obj_name):
+def get_hand_to_dict(obj_name, camera=None):
+    if camera is None:
+        camera = bpy.data.objects['Camera']
     hand_bone_dict = {}
-    for bone in bpy.data.objects[obj_name].pose.bones:
+    aram = bpy.data.objects[obj_name]
+    for bone in aram.pose.bones:
         if bone.name in hand_parts:
             # get the bone position (world space)
-            hand_bone_dict[bone.name] = to_camera_space_2d(bone.matrix.to_translation(), clamp=False)
+            x, y = to_camera_space_2d(bone.matrix.to_translation(), clamp=False)
+            boneVec = get_bone_pos_global(aram, bone.name)
+            occ = is_occluded(camera, boneVec)
+            # convert true/false to 1/0
+            occ = 1 if occ else 0
+            hand_bone_dict[bone.name] = (x, y, occ)
     return hand_bone_dict
 
 
 # function to list pose bones
-def get_pose_to_dict(obj_name):
+def get_pose_to_dict(obj_name, camera=None):
+    if camera is None:
+        camera = bpy.data.objects['Camera']
+
     pose_bone_dict = {}
-    for bone in bpy.data.objects[obj_name].pose.bones:
+    aram = bpy.data.objects[obj_name]
+
+    for bone in aram.pose.bones:
         if bone.name in pose_parts.keys():
-            if bone.name == 'nose':
-                print(bone.name, bone.matrix.to_translation())
-            pose_bone_dict[pose_parts[bone.name]] = to_camera_space_2d(bone.matrix.to_translation(), clamp=False)
+            # get the bone position (world space)
+            x, y = to_camera_space_2d(bone.matrix.to_translation(), clamp=False)
+            boneVec = get_bone_pos_global(aram, bone.name)
+            # if bone.name not in pose_head:
+            if bone.name in pose_head:
+                print(bone.name, "===============")
+                occ = is_occluded(camera, boneVec, .005)
+            elif bone.name in hand_parts:
+                occ = is_occluded(camera, boneVec, .005)
+            else:
+                occ = is_occluded(camera, boneVec)
+            # convert true/false to 1/0
+            occ = 1 if occ else 0
+            pose_bone_dict[pose_parts[bone.name]] = (x, y, occ)
+
     return pose_bone_dict
 
 
@@ -473,13 +477,16 @@ def get_obj_from_armature(armature):
 
 # hdrs function
 def load_hdrs(directory=None):
-    if directory is None: os.path.join(os.path.dirname(bpy.data.filepath), "hdrs")
+    # clear all images which start with 'env'
+    for img in bpy.data.images:
+        if img.name.startswith('env'):
+            bpy.data.images.remove(img)
 
-    hdr_list = glob.glob(os.path.join(directory, "*.*"))
-    print(hdr_list)
+    if directory is None:
+        os.path.join(os.path.dirname(bpy.data.filepath), "hdrs")
 
     # load it in blender and rename it using basename
-    for hdr in hdr_list:
+    for hdr in glob.glob(os.path.join(directory, "*.*")):
         bpy.ops.image.open(filepath=hdr, files=[{"name":hdr}], relative_path=True, show_multiview=False)
 
 
@@ -491,3 +498,51 @@ def random_hdr():
     # list all images which start with 'env'
     hdr_list = [img for img in bpy.data.images if img.name.startswith('env')]
     set_hdr(random.choice(hdr_list))
+
+
+# only for testing
+# function to get bone position in camera view using view3d_utils
+def get_bone_pos_global(armature, bone_name):
+    bone = armature.pose.bones[bone_name]
+    bone_pos = armature.matrix_world @ bone.head
+    return bone_pos
+
+
+def occlusion_ray(scene, dg, origin, direction, distance=1000):
+    direction.normalized()
+    is_hit, loc, _, index, hit_obj, _ = scene.ray_cast(
+        dg,
+        origin,
+        direction,
+        distance=distance
+    )
+
+    if is_hit:
+        return is_hit, hit_obj.name_full, index
+    else:
+        return is_hit, None, None
+
+
+def is_occluded(camera, boneVec, threshold=.2):
+    # get current scene
+    scene = bpy.context.scene
+    dg = bpy.context.evaluated_depsgraph_get()
+    # get vectors which define view frustum of camera
+    _, _, _, top_left = camera.data.view_frame(scene=scene)
+
+    # convert [0, 1] to [-.5, .5]
+    x, y, _ = world_to_camera_view(scene, camera, boneVec)
+    pixel_vector = Vector((x-.5, y-.5, top_left[2]))
+    pixel_vector.rotate(camera.matrix_world.to_quaternion())
+
+    # camera -> bone
+    c2b = occlusion_ray(scene, dg, camera.matrix_world.translation, pixel_vector, 1000)
+    print("camera -> bone: ", c2b)
+    # bone -> camera
+    b2c = occlusion_ray(scene, dg, boneVec, -pixel_vector, threshold)
+    print("bone -> camera: ", b2c)
+
+    if c2b[0] and b2c[0]:
+        return (c2b != b2c)
+    else:
+        return True

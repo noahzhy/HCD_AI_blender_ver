@@ -69,15 +69,18 @@ def bbox2xml(bbox):
 def pose2xml(keypoints, label_name:str):
     xml_txt = """\t\t<{}>\n""".format(label_name)
     for key, value in keypoints.items():
-        xml_txt += """\t\t\t<""" + key + """>\n"""
-        xml_txt += """\t\t\t\t<x>""" + str(value[0]) + """</x>\n"""
-        xml_txt += """\t\t\t\t<y>""" + str(value[1]) + """</y>\n"""
+        x, y, is_occluded = value
 
-        x, y = value
+        xml_txt += """\t\t\t<""" + key + """>\n"""
+        xml_txt += """\t\t\t\t<x>""" + str(x) + """</x>\n"""
+        xml_txt += """\t\t\t\t<y>""" + str(y) + """</y>\n"""
+
         if is_visible(x, y):
             xml_txt += """\t\t\t\t<v>1</v>\n"""
         else:
             xml_txt += """\t\t\t\t<v>0</v>\n"""
+
+        xml_txt += """\t\t\t\t<occluded>""" + str(is_occluded) + """</occluded>\n"""
 
         xml_txt += """\t\t\t</""" + key + """>\n"""
     xml_txt += """\t\t</{}>\n""".format(label_name)
