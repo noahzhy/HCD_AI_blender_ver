@@ -1,4 +1,3 @@
-# scrpt to generate xml file from skeleton keypoints array
 import os
 import glob
 import json
@@ -117,4 +116,3 @@ def save_xml(objects:list, img_path:str, xml_path:str, img_width:int, img_height
     xml_file = os.path.join(xml_path, xml_name)
     with open(xml_file, "w") as f:
         f.write(xml_txt)
-

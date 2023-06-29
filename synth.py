@@ -11,20 +11,18 @@ if not dir in sys.path:
 
 import importlib
 import base_ops
-import xml_tools
 importlib.reload(base_ops)
+import xml_tools
 importlib.reload(xml_tools)
 from base_ops import *
 from xml_tools import *
 
 
 class SynthData():
-    def __init__(self, num, debug=False, outpath="", hdr_path="", env_light=True):
-        self.num = num
+    def __init__(self, num, debug=False, outpath="", hdr_path=""):
         self.debug = debug
         self.outpath = outpath
         self.hdr_path = hdr_path
-        self.env_light = env_light
         # init scene
         scene = bpy.context.scene
         scene.use_nodes = True
@@ -84,12 +82,18 @@ class SynthData():
         # open depth of field
         bpy.context.scene.camera.data.dof.use_dof = True
         bpy.context.scene.render.film_transparent = False
-        # open motion blur
-        bpy.context.scene.render.use_motion_blur = True
-        # open render noise
-        bpy.context.scene.cycles.samples = 256
-        # open denoise
-        bpy.context.scene.cycles.use_denoising = True
+
+        # # open motion blur
+        # bpy.context.scene.render.use_motion_blur = True
+        # # open render noise
+        # bpy.context.scene.cycles.samples = 128
+        # # open denoise
+        # bpy.context.scene.cycles.use_denoising = True
+
+        bpy.context.scene.eevee.taa_render_samples = 128
+        bpy.context.scene.eevee.use_taa_reprojection = True
+        bpy.context.scene.eevee.use_motion_blur = True
+        
         # bake settings to ADJACENT_FACES
         bpy.context.scene.render.bake.margin_type = 'ADJACENT_FACES'
         single_render(main_viewlayer)
@@ -131,20 +135,18 @@ class SynthData():
 
         # update camera
         armature = list_armatures(visible_only=True)[0]
-#        v3 = get_bone_pos_global(armature, 'nose')
-        v3 = get_bone_pos_global(armature, 'RightHand')
+        v3 = get_bone_pos_global(armature, 'nose')
         random_camera(dst_point=v3, offset_scope=0.1, pos_scale=1.5)
-
-        if self.env_light:
-            random_light(target_origin=v3, scope=1.0)
 
         self.render()
 
 
 if __name__ == "__main__":
+    # parse args
     base_dir = os.path.dirname(bpy.data.filepath)
     output_path = os.path.join(base_dir, "data")
     hdr_path = os.path.join(base_dir, "hdrs")
+
     ss = SynthData(1, debug=False, outpath=output_path, hdr_path=hdr_path)
     current_time = datetime.datetime.now()
     ss.gen_data()

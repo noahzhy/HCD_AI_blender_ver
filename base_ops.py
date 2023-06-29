@@ -64,9 +64,10 @@ def look_at(obj_name=None, point=Vector((0, 0, 0))):
     direction = point - loc
     rot = direction.to_track_quat('-Z', 'Y')
     obj.rotation_euler = rot.to_euler()
+    return rot
 
 
-def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_scope=0.0):
+def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_scope=0.0, min_distance=0.25, max_distance=2.5):
     x, y, z = dst_point
     if camera is None: camera = bpy.context.scene.camera
     # set camera position
@@ -78,15 +79,19 @@ def random_camera(camera=None, dst_point=Vector((0,0,0)), pos_scale=.5, offset_s
     # random point to look at
     point = Vector((
         random.uniform(x - offset_scope, x + offset_scope),
-        # random.uniform(y - offset_scope, y + offset_scope),
         y,
         random.uniform(z - offset_scope, z + offset_scope)
     ))
     # set camera rotation
-    look_at('Camera', point)
+    rot_quat = look_at('Camera', point)
+
+    # set distance
+    distance = random.uniform(min_distance, max_distance)
+    camera.location = point + rot_quat @ Vector((0.0, 0.0, distance))
+
     # enable camera depth of field and set distance
     camera.data.dof.use_dof = True
-    camera.data.dof.focus_distance = pos_scale
+    camera.data.dof.focus_distance = random.uniform(0.5*distance, distance)
 
 
 def random_light(light_list=[], target_origin=Vector((0,0,0)), scope=0.0, power_scope=[250, 750]):
@@ -566,14 +571,24 @@ def easy_mask_mode():
     bpy.context.scene.camera.data.dof.use_dof = False
     # transparent background
     bpy.context.scene.render.film_transparent = True
+    # bake settings to 
+    bpy.context.scene.render.bake.margin_type = 'EXTEND'
+
+
+    # for eevee render engine
+    bpy.context.scene.eevee.taa_render_samples = 1
+    bpy.context.scene.eevee.use_taa_reprojection = False
+    bpy.context.scene.eevee.use_motion_blur = False
+
+    # for cycles render engine
     # close motion blur
-    bpy.context.scene.render.use_motion_blur = False
+    bpy.context.scene.render.use_motion_blur = False   
+
     # close render noise
     bpy.context.scene.cycles.samples = 1
     # close denoising
     bpy.context.scene.cycles.use_denoising = False
-    # bake settings to 
-    bpy.context.scene.render.bake.margin_type = 'EXTEND'
+
 
 
 def single_render(layer_name):
